@@ -1,0 +1,183 @@
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(car)
+library(corrplot)
+```
+
+
+```{r}
+bodyfat <- read.csv("C:/Users/giord/OneDrive - Università degli Studi di Milano/1st year/Quarter 2/Statistical Learning/BodyFat Prediction/bodyfat.csv")
+```
+
+
+# 2) EXPLORATORY DATA ANALYSIS
+
+```{r}
+summary(bodyfat)
+```
+
+Create a function to build histogram plots with normal line fitted.
+```{r}
+histo_plot<- function (data, col, bins = 30) {
+  ggplot(data, aes(x = .data[[col]])) + 
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = bins,
+                 fill = "lightblue",
+                 color = "black") + 
+  geom_density(kernel = "gaussian",
+               color = "blue") + 
+  labs(x = col, y= "Density") +
+  ggtitle(paste("Histogram with density line -", col)) +
+  theme(plot.title = element_text(hjust = 0.5))
+  }
+```
+
+
+Apply the function to each column.
+```{r}
+lapply(colnames(bodyfat), function(col) histo_plot(bodyfat, col, bins=16))
+```
+
+Check if BodyFat is normally distributed
+```{r}
+shapiro.test(bodyfat$BodyFat)
+```
+From the output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. In other words, we can assume the normality.
+
+
+Do it for all the variables:
+```{r}
+# compute shapiro test for each column of the data set
+shapiro_results <- lapply(bodyfat, function(col) shapiro.test(col))
+
+# Extract variable names and p-values from the test results
+variable_names <- names(bodyfat)
+
+# compute the p values
+p_values <- round(sapply(shapiro_results, function(result) result$p.value), 
+                  digits = 2)
+
+# create the dataframe containing results 
+data.frame(Variable = variable_names, P_Value = p_values)
+```
+
+
+Take a look at the outlier in Height column.
+```{r}
+bodyfat[bodyfat$Height < 100, ]
+```
+
+
+
+Output box plots for each column of the data frame.
+```{r}
+for (col in colnames(bodyfat)) {
+  boxplot(bodyfat[[col]], main = paste("Boxplot - ", col))
+}
+```
+
+Produce Q-Q plots with confidence intervals.
+```{r}
+for (col in colnames(bodyfat)) {
+  qqPlot(bodyfat[[col]], main = paste("Q-Q plot - ", col))
+}
+```
+
+
+
+Scatter plots of the dependent variable as a function of the i-th independent one, individually.
+```{r}
+scatter_plot <- function(x_var, y_var) {
+  ggplot(bodyfat, aes(x = !!sym(x_var), y = !!sym(y_var))) +
+    geom_point() +
+    labs(x = x_var, y = y_var) +
+    ggtitle(paste("Scatter Plot of", y_var, "vs.", x_var)) +
+    theme(plot.margin = unit(c(1,1,1,1), "cm"),      # Set plot margins
+         aspect.ratio = 0.5,                            # Set aspect ratio (square)
+        plot.background = element_rect(fill = "white"))  # Set plot background color
+}
+```
+
+```{r}
+explanatory_variables <- names(bodyfat)[3:15]
+
+# Create scatter plots for each explanatory variable
+scatter_plots_list <- lapply(explanatory_variables, function(var) scatter_plot(var, "BodyFat"))
+scatter_plots_list
+```
+
+
+
+Compute correlation matrix.
+```{r}
+correlation_matrix <- cor(bodyfat)
+round(correlation_matrix, 2)
+```
+
+```{r}
+corrplot(correlation_matrix, method = "circle", type = "lower", order = "hclust",
+         tl.col = "black", tl.srt = 45)
+```
+
+A better way to assess multi-collinearity is VIF. First, create the model:
+```{r}
+simple_model <- lm(BodyFat ~ ., bodyfat)
+
+summary(simple_model)
+```
+apply VIF to the simple model
+```{r}
+vif_values <- vif(simple_model)
+
+barplot(vif_values, main ="VIF values", horiz = "TRUE")
+abline(v = 5, lwd = 3, lty = 2)
+```
+
+```{r}
+vif_values
+```
+
+Clean the dataset: remove Density, create new variables, as follows
+```{r}
+# remove density 
+bodyfat <- bodyfat[-1]
+```
+
+create ACratio
+```{r}
+bodyfat$ACratio <- bodyfat$Abdomen / bodyfat$Chest
+bodyfat$HTratio <- bodyfat$Hip / bodyfat$Thigh
+```
+
+Remove Abdomen, Chest, Hip, Thigh since we created new variables.
+```{r}
+bodyfat <- bodyfat %>% 
+  select(-Abdomen, -Chest, -Hip, -Thigh)
+```
+
+Remove Weight since it has a VIF value of 34!
+```{r}
+#bodyfat <- bodyfat %>%
+ # select(-Weight)
+```
+
+```{r}
+head(bodyfat)
+```
+
+Re-test a new simple model with these new columns.
+```{r}
+simple_model2 <- lm(BodyFat ~ ., bodyfat)
+
+summary(simple_model2)
+```
+
+```{r}
+vif_values2 <- vif(simple_model2)
+
+barplot(vif_values2, main ="VIF values 2", horiz = "TRUE")
+abline(v = 5, lwd = 3, lty = 2)
+```
+Now the VIF outputs a more encouraging group of values.
