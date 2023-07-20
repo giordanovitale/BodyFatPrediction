@@ -1,0 +1,58 @@
+A better way to assess multi-collinearity is VIF. First, create the model:
+```{r}
+simple_model <- lm(BodyFat ~ ., bodyfat)
+
+summary(simple_model)
+```
+
+
+Apply VIF to the simple model
+```{r}
+vif_values <- vif(simple_model)
+
+barplot(vif_values, main ="VIF values", horiz = "TRUE")
+abline(v = 5, lwd = 3, lty = 2)
+```
+
+```{r}
+vif_values
+```
+
+Clean the dataset: 
+```{r}
+# remove density 
+bodyfat <- bodyfat[-1]
+```
+
+create ACratio and HTratio
+```{r}
+bodyfat$ACratio <- bodyfat$Abdomen / bodyfat$Chest
+bodyfat$HTratio <- bodyfat$Hip / bodyfat$Thigh
+```
+
+Remove Abdomen, Chest, Hip, Thigh since we created new variables.
+```{r}
+bodyfat <- bodyfat %>% 
+  select(-Abdomen, -Chest, -Hip, -Thigh)
+```
+
+Remove Weight since it has a VIF value of 34!
+```{r}
+#bodyfat <- bodyfat %>%
+ # select(-Weight)
+```
+
+Re-test a new simple model with these new columns.
+```{r}
+simple_model2 <- lm(BodyFat ~ ., bodyfat)
+
+summary(simple_model2)
+```
+
+```{r}
+vif_values2 <- vif(simple_model2)
+
+barplot(vif_values2, main ="VIF values 2", horiz = "TRUE")
+abline(v = 5, lwd = 3, lty = 2)
+```
+Now the VIF outputs a more encouraging group of values.
