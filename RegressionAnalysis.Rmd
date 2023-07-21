@@ -53,6 +53,7 @@ BIC(robust_lm)
 ```
 
 
+
 ### B) LOGISTIC REGRESSION MODEL ###
 ```{r}
 logistic_regression <- glm(BodyFat ~ ., data = train)
