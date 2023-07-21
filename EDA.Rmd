@@ -139,29 +139,6 @@ corrplot(correlation_matrix, method = "circle",
 ```
 
 
-# 3) FEATURE ENGINEERING
-Remove Density.
-```{r}
-bodyfat <- bodyfat %>%
-  select(-Density)
-```
-
-Create ACratio and HTratio
-```{r}
-bodyfat$ACratio <- bodyfat$Abdomen / bodyfat$Chest
-bodyfat$HTratio <- bodyfat$Hip / bodyfat$Thigh
-```
-
-Remove Abdomen, Chest, Hip, Thigh since we created new variables. 
-Why? Because of high collinearity.
-```{r}
-bodyfat <- bodyfat %>% 
-  select(-Abdomen, -Chest, -Hip, -Thigh)
-```
-
-```{r}
-head(bodyfat)
-```
 
 # ?? VIF ??
 ```{r}
