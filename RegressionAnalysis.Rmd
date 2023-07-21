@@ -1,0 +1,66 @@
+# ++++++++++++ REGRESSION ANALYSIS ++++++++++++
+
+Apply the train-test split.
+```{r}
+sample <- sample(c(TRUE, FALSE), 
+                 nrow(bodyfat), 
+                 replace=TRUE, 
+                 prob=c(0.75,0.25))
+train  <- bodyfat[sample, ]
+test   <- bodyfat[!sample, ]
+```
+
+
+### A) Linear Regression ###
+
+- LINEAR REGRESSION USING PRINCIPAL COMPONENTS [?]
+
+- LINEAR REGRESSION USING ALL THE VARIABLES
+```{r}
+# Train the model
+complete_lm <- lm(BodyFat ~ ., data = train)
+
+# summary of the model
+summary(complete_lm)
+
+# see Salini's additional code in file 1
+```
+Compute measure of goodness.
+```{r}
+# R Squared
+summary(complete_lm)$r.squared
+
+# Adjusted R Squared
+summary(complete_lm)$adj.r.squared
+
+# BIC
+BIC(complete_lm)
+
+#AIC 
+AIC(complete_lm)
+```
+
+- ROBUST REGRESSION USING ALL THE VARIABLES
+```{r}
+# Train the model
+robust_lm <- rlm(BodyFat ~ ., data = train, psi = psi.hampel, init = "lts")
+
+# Summary
+summary(robust_lm)
+
+# BIC
+BIC(robust_lm)
+```
+
+
+### B) LOGISTIC REGRESSION MODEL ###
+```{r}
+logistic_regression <- glm(BodyFat ~ ., data = train)
+summary(logistic_regression)
+
+
+# McFadden R squared
+McF <- round(with(summary(logistic_regression), 1 - deviance/null.deviance),
+             digits = 2)
+paste("McFadden R squared for logistic regression is ", McF)
+```
