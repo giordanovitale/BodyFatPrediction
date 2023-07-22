@@ -36,7 +36,7 @@ bodyfat <- bodyfat %>%
   select(-Abdomen, -Chest, -Hip, -Thigh)
 ```
 
-Remove Weight since it has a VIF value of 34!
+Remove Weight since it has a VIF value of 34!   
 ```{r}
 #bodyfat <- bodyfat %>%
  # select(-Weight)

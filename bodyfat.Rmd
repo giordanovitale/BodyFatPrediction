@@ -1,0 +1,383 @@
+---
+title: "bodyfat"
+author: "Giordano Vitale"
+date: "2023-07-13"
+output: html_document
+---
+
+
+The variables are:
+
+- Density determined from underwater weighing
+- Percent body fat from Siri's (1956) equation
+- Age (years)
+- Weight (lbs)
+- Height (inches)
+- Neck circumference (cm)
+- Chest circumference (cm)
+- Abdomen circumference (cm)
+- Hip circumference (cm)
+- Thigh circumference (cm)
+- Knee circumference (cm)
+- Ankle circumference (cm)
+- Biceps (extended) circumference (cm)
+- Forearm circumference (cm)
+- Wrist circumference (cm)
+
+
+# 0) IMPORT LIBRARIES AND DATA
+```{r}
+bodyfat <- read.csv("C:/Users/giord/OneDrive - Università degli Studi di Milano/1st year/Quarter 2/Statistical Learning/BodyFat Prediction/bodyfat.csv")
+```
+
+Convert Weight from lbs to KG and convert Height from inches to CMs.
+```{r}
+bodyfat$Weight <- bodyfat$Weight/2.2
+bodyfat$Height <- bodyfat$Height*2.54
+```
+
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(car)
+library(corrplot)
+library(e1071)
+library(MASS)
+```
+
+# 1) DATA PREPROCESSING
+
+```{r}
+head(bodyfat)[1:3,]
+```
+
+
+```{r}
+dim(bodyfat)
+```
+
+
+Check the datatype for each column.
+```{r}
+map(bodyfat, class)
+```
+
+Check for null values.
+```{r}
+# colSums(is.na(bodyfat)) > 0
+sum(is.na(bodyfat))
+```
+
+Check for duplicates.
+```{r}
+sum(duplicated(bodyfat))
+```
+
+Check for infinite values.
+```{r}
+apply(bodyfat, 2, function(x) any(is.infinite(x)))
+```
+
+```{r}
+sapply(bodyfat, function(x) n_distinct(x, na.rm = TRUE))
+```
+
+
+
+# 2) EXPLORATORY DATA ANALYSIS
+
+```{r}
+summary(bodyfat)
+```
+
+Create a function to build histogram plots with normal line fitted.
+```{r}
+histo_plot<- function (data, col, bins = 30) {
+  ggplot(data, aes(x = .data[[col]])) + 
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = bins,
+                 fill = "lightblue",
+                 color = "black") + 
+  geom_density(kernel = "gaussian",
+               color = "red",
+               size = 1.2) + 
+  labs(x = col, y= "Density") +
+  ggtitle(paste("Histogram with density line -", col)) +
+  theme(plot.title = element_text(hjust = 0.5))
+  }
+```
+
+
+Apply the function to each column.
+```{r}
+lapply(colnames(bodyfat), function(col) histo_plot(bodyfat, col, bins=16))
+```
+
+
+```{r}
+# library(e1071)
+
+skewness <- lapply(colnames(bodyfat), function(col) skewness(bodyfat[[col]]))
+
+variable_names <- names(bodyfat)
+
+skewness <- unlist(skewness)
+skewness <- round(skewness, digits = 2)
+
+skewness_df <- data.frame(Variable = variable_names, Skewness = skewness)
+skewness_df
+```
+
+
+Check if BodyFat is normally distributed
+```{r}
+shapiro.test(bodyfat$BodyFat)
+```
+From the output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. In other words, we can assume the normality.
+
+Do it for all the variables:
+```{r}
+# compute shapiro test for each column of the data set
+shapiro_results <- lapply(bodyfat, function(col) shapiro.test(col))
+
+# Extract variable names and p-values from the test results
+variable_names <- names(bodyfat)
+
+# compute the p values
+p_values <- round(sapply(shapiro_results, function(result) result$p.value), 
+                  digits = 2)
+
+# create the dataframe containing results 
+shapiro_results_df <- data.frame(Variable = variable_names, P_Value = p_values)
+row.names(shapiro_results_df) <- NULL
+
+# add a column that returns Yes if normal, No otherwise
+shapiro_results_df$Normal <- ifelse(shapiro_results_df$P_Value > 0.05, "Yes", "No")
+shapiro_results_df
+```
+
+
+
+Take a look at the outlier in Height column.
+```{r}
+bodyfat[bodyfat$Height < 100, ]
+```
+
+
+Output box plots for each column of the data frame.
+```{r}
+for (col in colnames(bodyfat)) {
+  boxplot(bodyfat[[col]], main = paste("Boxplot - ", col))
+}
+```
+
+Produce Q-Q plots with confidence intervals.
+```{r}
+for (col in colnames(bodyfat)) {
+  qqPlot(bodyfat[[col]], main = paste("Q-Q plot - ", col))
+}
+```
+
+
+Scatter plots of the dependent variable as a function of the i-th independent one, individually.
+```{r}
+scatter_plot <- function(x_var, y_var) {
+  ggplot(bodyfat, aes(x = !!sym(x_var), y = !!sym(y_var))) +
+    geom_point() +
+    labs(x = x_var, y = y_var) +
+    ggtitle(paste("Scatter Plot of", y_var, "vs.", x_var)) +
+    theme(plot.margin = unit(c(1,1,1,1), "cm"),      # Set plot margins
+         aspect.ratio = 0.5,                            # Set aspect ratio (square)
+        plot.background = element_rect(fill = "white"))  # Set plot background color
+}
+```
+
+```{r}
+explanatory_variables <- names(bodyfat)[3:15]
+
+# Create scatter plots for each explanatory variable
+scatter_plots_list <- lapply(explanatory_variables, function(var) scatter_plot(var, "BodyFat"))
+scatter_plots_list
+```
+
+
+Compute correlation matrix.
+```{r}
+correlation_matrix <- cor(bodyfat)
+round(correlation_matrix, 2)
+```
+
+```{r}
+corrplot(correlation_matrix, method = "number", 
+         number.cex = 0.6, 
+         tl.col = "black", 
+         type = "lower", 
+         tl.srt = 45)
+```
+
+
+
+Plot it.
+```{r}
+corrplot(correlation_matrix, method = "circle", 
+         type = "lower",
+         order = "hclust",
+         tl.col = "black", 
+         tl.srt = 45)
+```
+
+
+# 3) FEATURE ENGINEERING
+Remove Density.
+```{r}
+bodyfat <- bodyfat %>%
+  select(-Density)
+```
+
+Create ACratio and HTratio
+```{r}
+bodyfat$ACratio <- bodyfat$Abdomen / bodyfat$Chest
+bodyfat$HTratio <- bodyfat$Hip / bodyfat$Thigh
+```
+
+Remove Abdomen, Chest, Hip, Thigh since we created new variables. 
+Why? Because of high collinearity.
+```{r}
+bodyfat <- bodyfat %>% 
+  select(-Abdomen, -Chest, -Hip, -Thigh)
+```
+
+```{r}
+head(bodyfat)
+```
+
+# ?? VIF ??
+```{r}
+simple_model <- lm(BodyFat ~ ., bodyfat)
+```
+
+```{r}
+vif_values <- vif(simple_model)
+
+barplot(vif_values, main = "VIF" , horiz = "TRUE")
+abline(v = 5, lwd = 3, lty = 2)
+```
+
+
+
+```{r}
+correlation_matrix2 <- cor(bodyfat)
+round(correlation_matrix2, 2)
+```
+
+```{r}
+corrplot(correlation_matrix2, method = "number", 
+         number.cex = 0.6, 
+         tl.col = "black", 
+         type = "lower", 
+         tl.srt = 45)
+```
+
+
+
+
+
+# ++++++++++++ REGRESSION ANALYSIS ++++++++++++
+
+Apply the train-test split.
+```{r}
+sample <- sample(c(TRUE, FALSE), 
+                 nrow(bodyfat), 
+                 replace=TRUE, 
+                 prob=c(0.75,0.25))
+train  <- bodyfat[sample, ]
+test   <- bodyfat[!sample, ]
+```
+
+
+### A) Linear Regression ###
+
+- LINEAR REGRESSION USING PRINCIPAL COMPONENTS [?]
+
+- LINEAR REGRESSION USING ALL THE VARIABLES
+```{r}
+# Train the model
+complete_lm <- lm(BodyFat ~ ., data = train)
+
+# summary of the model
+summary(complete_lm)
+
+# see Salini's additional code in file 1
+```
+Compute measure of goodness.
+```{r}
+# R Squared
+summary(complete_lm)$r.squared
+
+# Adjusted R Squared
+summary(complete_lm)$adj.r.squared
+
+# BIC
+BIC(complete_lm)
+
+#AIC 
+AIC(complete_lm)
+```
+
+- ROBUST REGRESSION USING ALL THE VARIABLES
+```{r}
+# Train the model
+robust_lm <- rlm(BodyFat ~ ., data = train, psi = psi.hampel, init = "lts")
+
+# Summary
+summary(robust_lm)
+
+# BIC
+BIC(robust_lm)
+```
+
+```{r}
+
+```
+
+
+### B) LOGISTIC REGRESSION MODEL ###
+```{r}
+logistic_regression <- glm(BodyFat ~ ., data = train)
+summary(logistic_regression)
+
+
+# McFadden R squared
+McF <- round(with(summary(logistic_regression), 1 - deviance/null.deviance),
+             digits = 2)
+paste("McFadden R squared for logistic regression is ", McF)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+FOR THE CLUSTERING PART, MAYBE.
+We can create a new categorical variable that classifies people in 3 categories: over, normal, below.
+```{r}
+
+```
