@@ -142,3 +142,76 @@ subset6 <- lm(BodyFat ~ Age + Weight + Height +
 summary(subset6)
 ```
 
+
+
+### D) POLYNOMIAL REGRESSION ###
+
+```{r}
+plot(bodyfat$BodyFat, bodyfat$HTratio)
+
+plot(bodyfat$BodyFat, bodyfat$ACratio)
+```
+
+
+```{r}
+polynomial_model <- lm(BodyFat ~ 
+                         Age + I(Age^2) + Weight + I(Weight^2) + 
+                         Height + I(Height^2) + Neck + I(Neck^2) + 
+                         Knee + I(Knee^2) + Ankle + I(Ankle^2) + 
+                         Biceps + I(Biceps^2) + Forearm + I(Forearm^2) + 
+                         Wrist + I(Wrist^2) + ACratio + I(ACratio^2) +  
+                         HTratio + I(HTratio^2), 
+                       data=train)
+
+summary(polynomial_model)
+```
+
+```{r}
+subset_polynomial <- regsubsets(BodyFat ~ 
+                         Age + I(Age^2) + Weight + I(Weight^2) + 
+                         Height + I(Height^2) + Neck + I(Neck^2) + 
+                         Knee + I(Knee^2) + Ankle + I(Ankle^2) + 
+                         Biceps + I(Biceps^2) + Forearm + I(Forearm^2) + 
+                         Wrist + I(Wrist^2) + ACratio + I(ACratio^2) +  
+                         HTratio + I(HTratio^2), 
+                       data=train,
+                       method = "exhaustive",
+                       nvmax = 22)
+
+subset_polynomial_summary <- summary(subset_polynomial)
+```
+
+```{r}
+x_pol <- which.min(subset_polynomial_summary$cp)
+x_pol
+```
+
+```{r}
+# visualize the performance of each "best performing" model with n features (n = 1, ..., 11)
+plot(subset_polynomial_summary$cp, 
+     xlab = "Number of Variables",
+     ylab = "Adj R Squared",
+     main = "Adj-R-Sqared for each best performing model")
+
+points(x_pol, 
+       subset_polynomial_summary$cp[x_pol],
+       pch = 0,
+       col = "red",
+       cex = 2)
+```
+
+
+```{r}
+coef(subset_polynomial, 9)
+
+subset_polynomial_summary$which[9, ]
+```
+
+
+```{r}
+naive_polyn <- lm(BodyFat ~ Age + Weight + I(Weight^2) + Height + I(Height^2)
+                  + Wrist + I(Wrist^2) + ACratio + I(ACratio^2),
+                  data = train)
+
+summary(naive_polyn)
+```
