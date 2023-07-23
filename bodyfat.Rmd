@@ -329,7 +329,9 @@ AIC(complete_lm)
 - ROBUST REGRESSION USING ALL THE VARIABLES
 ```{r}
 # Train the model
-robust_lm <- rlm(BodyFat ~ ., data = train, psi = psi.hampel, init = "lts")
+robust_lm <- rlm(BodyFat ~ ., data = train, 
+                 psi = psi.hampel,
+                 init = "lts")
 
 # Summary
 summary(robust_lm)
@@ -338,9 +340,7 @@ summary(robust_lm)
 BIC(robust_lm)
 ```
 
-```{r}
 
-```
 
 
 ### B) LOGISTIC REGRESSION MODEL ###
@@ -355,13 +355,80 @@ McF <- round(with(summary(logistic_regression), 1 - deviance/null.deviance),
 paste("McFadden R squared for logistic regression is ", McF)
 ```
 
+### C) - SUBSET SELECTION ###
+(http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/155-best-subsets-regression-essentials-in-r/)
 
+```{r}
+# train the models
+subset_selection <- regsubsets(BodyFat ~ ., data = train, method = "exhaustive", nvmax = 11)
 
+# summary
+subset_selection_summary <- summary(subset_selection)
+subset_selection_summary
+```
 
+```{r}
+# optimal number of features to include in the model, according to Cp
+which.min(subset_selection_summary$cp)
+```
 
+```{r}
+# visualize the performance of each "best performing" model with n features (n = 1, ..., 11)
+plot(subset_selection_summary$cp, 
+     xlab = "Number of Variables",
+     ylab = "Adj R Squared",
+     main = "Adj-R-Sqared for each best performing model")
 
+points(9, 
+       subset_selection_summary$cp[9],
+       pch = 0,
+       col = "red",
+       cex = 2)
+```
 
+We saw that the best number of variables to include was 9 according to the Cp measurement.
+What about AdjustedRSquared and BIC?
+```{r}
+data.frame(
+  Adj.R2 = which.max(subset_selection_summary$adjr2),
+  CP = which.min(subset_selection_summary$cp),
+  BIC = which.min(subset_selection_summary$bic)
+)
+```
+Show the coefficients of the best model according to Cp and Adj-R.Squared.
+```{r}
+coef(subset_selection, 9)
 
+subset_selection_summary$which[9, ]
+```
+
+Show the coefficients of the best model according to BIC.
+```{r}
+coef(subset_selection, 6)
+
+subset_selection_summary$which[6, ]
+```
+
+__Comment: even if 9 is the best number of features according to 2 goodness measurements, the improvement from 6 to 9 is negligible and for this reason, for higher simplicity, the model with 6 features may be preferred.__
+
+Formally define the model with 9 variables (found through Cp and Adj-R-Sq)
+```{r}
+subset9 <- lm(BodyFat ~ Age + Weight + Height + 
+                       Neck + Knee + Forearm +
+                        Wrist + ACratio + HTratio,
+              data = train) 
+
+summary(subset9)
+```
+
+Formally define the model with 6 variables (found through BIC)
+```{r}
+subset6 <- lm(BodyFat ~ Age + Weight + Height + 
+                        Forearm + Wrist + ACratio,
+              data = train) 
+
+summary(subset6)
+```
 
 
 
