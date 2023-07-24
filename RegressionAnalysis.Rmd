@@ -144,15 +144,16 @@ summary(subset6)
 
 
 
-### D) POLYNOMIAL REGRESSION ###
+### D) POLYNOMIAL REGRESSION  ###
 
+Visualize BodyFat as a function of the two variables created, since the scatter plots have been performed before the feature engineering part.
 ```{r}
 plot(bodyfat$BodyFat, bodyfat$HTratio)
 
 plot(bodyfat$BodyFat, bodyfat$ACratio)
 ```
 
-
+Create a polynomial model where the variables are the normal ones and the squared ones.
 ```{r}
 polynomial_model <- lm(BodyFat ~ 
                          Age + I(Age^2) + Weight + I(Weight^2) + 
@@ -166,6 +167,7 @@ polynomial_model <- lm(BodyFat ~
 summary(polynomial_model)
 ```
 
+Perform exhaustive subset selection technique to the polynomial model.
 ```{r}
 subset_polynomial <- regsubsets(BodyFat ~ 
                          Age + I(Age^2) + Weight + I(Weight^2) + 
@@ -181,6 +183,7 @@ subset_polynomial <- regsubsets(BodyFat ~
 subset_polynomial_summary <- summary(subset_polynomial)
 ```
 
+Which is the optimal number of features according to the Cp measure?
 ```{r}
 x_pol <- which.min(subset_polynomial_summary$cp)
 x_pol
@@ -215,3 +218,47 @@ naive_polyn <- lm(BodyFat ~ Age + Weight + I(Weight^2) + Height + I(Height^2)
 
 summary(naive_polyn)
 ```
+
+
+```{r}
+BIC(naive_polyn)
+```
+
+Bad resutls!
+```{r}
+vif(naive_polyn)
+```
+
+
+
+### E) PARTIAL LEAST SQUARES ###
+```{r}
+pls_model <- plsr(BodyFat ~., data = train, scale = TRUE, validation = "CV")
+summary(pls_model)
+```
+VALIDATION: RMSEP (Root Mean Squared Error of Prediction): This section presents the cross-validated performance of the PLS model using the RMSEP metric. The RMSEP indicates the average prediction error of the model on new data. The values under each number of components indicate the RMSEP obtained after cross-validation for that specific number of components.
+
+TRAINING: % Variance Explained: This section shows the percentage of variance explained by the PLS model for both the predictor variables (X) and the response variable "BodyFat" (Y). For example, with 1 component, the PLS model explains 46.61% of the variation in the predictor variables and 49.11% of the variation in "BodyFat."
+
+```{r}
+validationplot(pls_model, val.type="MSEP", legendpos = "topright", main="PLSR Test")
+```
+
+Build a model made by the two components.
+```{r}
+# Extract the scores (component values) for the first two components
+component_scores <- pls_model$scores[, 1:2]
+
+# Create a new data frame with the component scores and the response variable 'BodyFat'
+data_with_components <- data.frame(component1 = component_scores[, 1],
+                                   component2 = component_scores[, 2],
+                                   BodyFat = train$BodyFat)
+
+# Fit a linear regression model using the first two components as predictors
+model_pls_components <- lm(BodyFat ~ component1 + component2, data = data_with_components)
+summary(model_pls_components)
+```
+```{r}
+BIC(model_pls_components)
+```
+
