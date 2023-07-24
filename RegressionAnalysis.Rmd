@@ -262,3 +262,6 @@ summary(model_pls_components)
 BIC(model_pls_components)
 ```
 
+
+
+hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
