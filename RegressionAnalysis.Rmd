@@ -327,3 +327,43 @@ What to do with this?
 
 
 
+### I) GAMS ###
+
+library gam or library mgcv
+```{r}
+gam_model <- gam(BodyFat ~ s(Age) + (Weight) + (Height) + 
+                            s(Neck) + s(Knee) + s(Ankle) + 
+                            s(Biceps) + s(Forearm) + (Wrist) +
+                            (ACratio) + s(HTratio),
+                 data = train)
+
+summary(gam_model)
+```
+
+
+```{r}
+plot(gam_model)
+```
+
+```{r}
+BIC(gam_model)
+```
+
+
+Using the other library
+```{r}
+library(mgcv)
+
+gam_model2 <- gam(BodyFat ~ s(Age) + (Weight) + (Height) + 
+                            s(Neck) + s(Knee) + s(Ankle) + 
+                            s(Biceps) + s(Forearm) + (Wrist) +
+                            (ACratio) + s(HTratio),
+                 data = train)
+
+summary(gam_model2)
+```
+
+```{r}
+BIC(gam_model2)
+```
+
