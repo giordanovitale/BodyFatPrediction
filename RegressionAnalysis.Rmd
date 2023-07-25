@@ -258,10 +258,29 @@ data_with_components <- data.frame(component1 = component_scores[, 1],
 model_pls_components <- lm(BodyFat ~ component1 + component2, data = data_with_components)
 summary(model_pls_components)
 ```
+
 ```{r}
 BIC(model_pls_components)
 ```
 
 
 
-hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+
+### F) STEP FUNCTIONS: NO ###
+
+
+
+### G) LOCAL REGRESSION ###
+```{r}
+#define k-fold cross validation method
+ctrl <- trainControl(method = "cv", number = 5)
+grid <- expand.grid(span = seq(0.5, 0.9, len = 5), degree = 1)
+
+#perform cross-validation using smoothing spans ranging from 0.5 to 0.9
+model <- train(BodyFat ~ ., data = train, method = "gamLoess", tuneGrid=grid, trControl = ctrl)
+
+#print results of k-fold cross-validation
+print(model)
+```
+
+
