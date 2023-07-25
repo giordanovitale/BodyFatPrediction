@@ -284,3 +284,46 @@ print(model)
 ```
 
 
+
+
+### H) REGRESSION TREES ###
+
+https://www.statology.org/classification-and-regression-trees-in-r/
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+regression_tree <- rpart(BodyFat ~ ., data = train, cp = 0.001)
+
+printcp(regression_tree)
+```
+
+```{r}
+rpart.plot::rpart.plot(regression_tree,
+                       main = "Plot of the complete regression tree")
+```
+
+Prune the tree
+```{r}
+# find the optimal Cp value
+best_cp <- regression_tree$cptable[which.min(regression_tree$cptable[, "xerror"]), "CP"]
+
+# pruned tree
+pruned_tree <- prune(regression_tree, cp = best_cp)
+
+# plot the pruned tree
+rpart.plot::rpart.plot(pruned_tree,
+                       faclen = 0,
+                       type = 2,
+                       box.palette = "Greens",
+                       main = "Plot of the Pruned Tree")
+```
+What to do with this? 
+1) prediction: later
+2) interpretation: e.g., individuals with high HT ratio and AC ratio suffer high bodyfat...)
+3) feature importance: the features appearing in the plot are more important
+4) terminal node scatterplots, or decision boundaries, not sure doable with continuous Y variable...
+
+
+
