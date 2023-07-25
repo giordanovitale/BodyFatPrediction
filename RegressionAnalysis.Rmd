@@ -367,3 +367,42 @@ summary(gam_model2)
 BIC(gam_model2)
 ```
 
+
+
+### J) SVM REGRESSION ###
+```{r}
+svm_regression <- svm(BodyFat ~ ., data = train,
+                      kernel = "radial")
+
+summary(svm_regression)
+
+svm_regression
+```
+
+```{r}
+svm_regression2 <- svm(BodyFat ~ ., data = train,
+                      kernel = "sigmoid")
+
+summary(svm_regression2)
+
+svm_regression2
+```
+
+```{r}
+svm_regression3 <- svm(BodyFat ~ ., data = train,
+                      kernel = "linear")
+
+summary(svm_regression3)
+
+svm_regression3
+```
+
+
+```{r}
+svm_regression4 <- svm(BodyFat ~ ., data = train,
+                      kernel = "polynomial")
+
+summary(svm_regression4)
+
+svm_regression4
+```
