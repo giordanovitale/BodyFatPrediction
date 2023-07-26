@@ -1,15 +1,101 @@
 # 5) MODEL EVALUATION 
+
+
+### PERFORMANCE OF THE PREDICTIONS ON TEST DATA ###
+
+Linear model with all variables
+```{r}
+pred_linear <- predict(complete_lm, newdata = test)
+mse_linear <- MSE(pred_linear, test$BodyFat)
+```
+
+Robust linear model with all variables
+```{r}
+pred_robust <- predict(robust_lm, newdata = test)
+mse_robust <- MSE(pred_robust, test$BodyFat)
+```
+
+Logistic Regression
+```{r}
+pred_log <- predict(logistic_regression, newdata = test)
+mse_log <- MSE(pred_log, test$BodyFat)
+```
+
+Subset selection
+```{r}
+pred_subset_lin <- predict(best_subset, newdata = test)
+mse_subset_lin <- MSE(pred_subset, test$BodyFat)
+```
+
+Polynomial Regression
+```{r}
+pred_polyn <- predict(polynomial_model, newdata = test)
+mse_polyn <- MSE(pred_polyn, test$BodyFat)
+```
+
+Subset Polynomial Regression
+```{r}
+pred_sub_polyn <- predict(subset_polyn, newdata = test)
+mse_sub_polyn <- MSE(pred_sub_polyn, test$BodyFat)
+```
+
+PLS components
+```{r}
+pred_pls_comp <- predict(model_pls_components, newdata = test)
+mse_pls_comp <- MSE(pred_pls_comp, test$BodyFat)
+```
+
+Local Regression
+```{r}
+pred_loc_reg <- predict(local_regression, newdata = test)
+mse_loc_reg <- MSE(pred_loc_reg, test$BodyFat)
+```
+
+Pruned Regression Tree
+```{r}
+pred_pruned <- predict(pruned_tree, newdata = test)
+mse_pruned <- MSE(pred_pruned, test$BodyFat)
+```
+
+GAM
+```{r}
+pred_gam <- predict(gam_model, newdata = test)
+mse_gam <- MSE(pred_gam, test$BodyFat)
+```
+
+SVM
+```{r}
+pred_svm <- predict(svm_regression, newdata = test)
+mse_svm <- MSE(pred_svm, test$BodyFat)
+```
+
+
+
 Create a data.frame containing BIC and AdjRSquared for each model
 ```{r}
 model_evaluation <- data.frame(
-  models = c("Linear All", "Robust", "Logistic", "Subset Selection", 
-             "Polynomial", "PLS", "Pruned Regression Tree", "GAM", "SVM"),
+  
+  Models = c("Linear All", "Robust", "Logistic", "Subset Linear", 
+             "Polynomial All", "Subset Polynomial", 
+             "PLS components", "Local Regression",
+             "Pruned Regression Tree", "GAM", "SVM"),
+  
   BIC = c(BIC_linear, BIC_robust, BIC_log_reg, BIC_sub,
-          BIC_polyn, BIC_pls, "NA", BIC_gam, "NA")
+          BIC_polynomial, BIC_sub_polyn, 
+          BIC_pls_components, "NA", 
+          "NA", BIC_gam, "NA"),
+  
+  MSE = c(mse_linear, mse_robust, mse_log, mse_subset_lin, 
+          mse_polyn, mse_sub_polyn, 
+          "NA", mse_loc_reg,
+          mse_pruned, mse_gam, mse_svm)
 )
 
 # round the values of the BICs
 model_evaluation$BIC <- round(as.numeric(model_evaluation$BIC), digits = 2)
+
+# round the values of the BICs
+model_evaluation$MSE <- round(as.numeric(model_evaluation$MSE), digits = 2)
 
 model_evaluation
 ```
