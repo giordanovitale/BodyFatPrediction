@@ -1,0 +1,15 @@
+# 5) MODEL EVALUATION 
+Create a data.frame containing BIC and AdjRSquared for each model
+```{r}
+model_evaluation <- data.frame(
+  models = c("Linear All", "Robust", "Logistic", "Subset Selection", 
+             "Polynomial", "PLS", "Pruned Regression Tree", "GAM", "SVM"),
+  BIC = c(BIC_linear, BIC_robust, BIC_log_reg, BIC_sub,
+          BIC_polyn, BIC_pls, "NA", BIC_gam, "NA")
+)
+
+# round the values of the BICs
+model_evaluation$BIC <- round(as.numeric(model_evaluation$BIC), digits = 2)
+
+model_evaluation
+```
