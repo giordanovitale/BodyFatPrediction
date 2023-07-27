@@ -99,3 +99,65 @@ model_evaluation$MSE <- round(as.numeric(model_evaluation$MSE), digits = 2)
 
 model_evaluation
 ```
+
+```{r}
+model_evaluation[which.min(model_evaluation$MSE), ]
+```
+
+
+```{r}
+par(mar = c(2,20,2,2))
+
+barplot(height = model_evaluation$MSE, 
+        names.arg = model_evaluation$Models,
+        col = "darkolivegreen3",
+        main = "MSE comparison among all the models",
+        xlab = "MSE",
+        xlim = c(0,120),
+        ylim = c(0.5, length(model_evaluation$Models) + 3),
+        axisnames = TRUE,
+        las = 1,
+        cex.names = 0.7,
+        horiz = TRUE
+        )
+
+abline(v = min(model_evaluation$MSE), 
+       col = "red",
+       lty = 2,
+       lwd = 3)
+
+text(min(model_evaluation$MSE) + 22, 
+     length(model_evaluation$Models) + 3, 
+     paste("Min MSE =", min(model_evaluation$MSE)), 
+     pos = 2, 
+     col = "red")
+```
+
+
+```{r}
+par(mar = c(2,20,2,2))
+
+barplot(height = model_evaluation$BIC, 
+        names.arg = model_evaluation$Models,
+        col = "lightblue2",
+        main = "BIC comparison among all the models",
+        xlab = "BIC",
+        xlim = c(0,1500),
+        ylim = c(0.5, length(model_evaluation$Models) + 3),
+        axisnames = TRUE,
+        las = 1,
+        cex.names = 0.7,
+        horiz = TRUE
+        )
+
+abline(v = min(model_evaluation$BIC), 
+       col = "red",
+       lty = 2,
+       lwd = 3)
+
+text(min(model_evaluation$BIC) + 22, 
+     length(model_evaluation$Models) + 3, 
+     paste("Min BIC =", min(model_evaluation$BIC)), 
+     pos = 2, 
+     col = "red")
+```
