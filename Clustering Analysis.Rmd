@@ -1,0 +1,89 @@
+### CLUSTERING ANALYSIS ###
+
+### K-Means###
+
+Elbow plot for k-means using the whole data set X (1:11)
+```{r}
+fviz_nbclust(X[, c("pc1", "pc2", "pc3")], 
+             kmeans, 
+             method = "wss",
+             linecolor = "black") + 
+  labs(x = "Number of Clusters",
+       y = "Total Within Sum of Squares",
+       title = "Optimal Number of Clusters for K-Means") +
+  geom_vline(xintercept = 3, 
+             linetype = 1, 
+             size = 1,
+             col = "red") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+k-means algorithm
+```{r}
+km <- kmeans(x = X[, c("pc1", "pc2", "pc3")], 
+             centers = 3, 
+             nstart = 1000)
+```
+**km --> K-means clustering with 3 clusters of sizes 109, 59, 83**
+
+
+plot results of final k-means model
+```{r}
+fviz_cluster(km, 
+             data = X[, c(1:11)],
+             xlab = "Component 1",
+             ylab = "Component 2") +
+  ggtitle("Cluster Plot using first two components") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+# Adding cluster variable to the ORIGINAL data set
+bodyfat$Cluster <- as.factor(km$cluster)
+```
+
+```{r}
+# Re-levelling to plot the histograms in the desired order
+#levels(bodyfat$cluster) <- c("C2", "C3", "C1")
+#bodyfat$cluster <- relevel(bodyfat$cluster, ref = 3)
+X$Cluster <- as.factor(km$cluster) 
+
+# Scatter-plot of the clusters
+ggplot(data = X[, c(1:11)], 
+       mapping = aes(x = X$pc1,
+                     y = X$pc2,
+                     color = X$Cluster)) +
+  geom_point(size = 0.8, 
+             alpha = 0.8) +
+  scale_colour_manual(values = c("red", "grey", "lightgreen")) +
+  theme_minimal() +
+  labs(x = paste("PC1 (", round(explained_var[1], 2), "%)", sep = ""),
+       y = paste("PC2 (", round(explained_var[2], 2), "%)", sep = ""),
+       title = "3-Means-Clustering") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.title = element_blank()) +
+  guides(color = guide_legend(override.aes = list(size = 4)))
+```
+
+```{r}
+
+```
+
+
+```{r}
+clusplot(X[, c(1:11)], 
+         km$cluster,
+         main = "2D representation of K-Means",
+         color = TRUE,
+         shade = TRUE,
+         labels = 2,
+         lines = 0)
+```
+
+```{r}
+library(plotly)
+plot_ly(X[, c(1:11)], x =~ pc1, y =~ pc2, z =~ pc3, color =~ bodyfat$Cluster) %>%
+     add_markers(size=1.5)
+```
