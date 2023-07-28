@@ -19,7 +19,7 @@ fviz_nbclust(X[, c("pc1", "pc2", "pc3")],
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-k-means algorithm
+K-means algorithm
 ```{r}
 km <- kmeans(x = X[, c("pc1", "pc2", "pc3")], 
              centers = 3, 
@@ -28,10 +28,14 @@ km <- kmeans(x = X[, c("pc1", "pc2", "pc3")],
 **km --> K-means clustering with 3 clusters of sizes 109, 59, 83**
 
 
-plot results of final k-means model
+Plot results of final k-means model
 ```{r}
 fviz_cluster(km, 
              data = X[, c(1:11)],
+             palette = c("firebrick3", "#00AFBB", "#E7B800"),
+             geom = "point",
+             ellipse.type = "convex",
+             ggtheme = theme_minimal(),
              xlab = "Component 1",
              ylab = "Component 2") +
   ggtitle("Cluster Plot using first two components") +
@@ -47,11 +51,12 @@ bodyfat$Cluster <- as.factor(km$cluster)
 ```{r}
 # Re-levelling to plot the histograms in the desired order
 #levels(bodyfat$cluster) <- c("C2", "C3", "C1")
+
 #bodyfat$cluster <- relevel(bodyfat$cluster, ref = 3)
 X$Cluster <- as.factor(km$cluster) 
 
 # Scatter-plot of the clusters
-ggplot(data = X[, c(1:11)], 
+ggplot(data = X[, c("pc1", "pc2", "pc3")], 
        mapping = aes(x = X$pc1,
                      y = X$pc2,
                      color = X$Cluster)) +
@@ -67,23 +72,53 @@ ggplot(data = X[, c(1:11)],
   guides(color = guide_legend(override.aes = list(size = 4)))
 ```
 
-```{r}
 
-```
 
 
 ```{r}
-clusplot(X[, c(1:11)], 
-         km$cluster,
-         main = "2D representation of K-Means",
-         color = TRUE,
-         shade = TRUE,
-         labels = 2,
-         lines = 0)
-```
-
-```{r}
-library(plotly)
 plot_ly(X[, c(1:11)], x =~ pc1, y =~ pc2, z =~ pc3, color =~ bodyfat$Cluster) %>%
      add_markers(size=1.5)
+```
+
+
+```{r}
+ggplot(bodyfat[, -1], aes(x = X$pc1, y = X$pc2, color = as.factor(bodyfat$Cluster))) +
+  geom_point() +
+  labs(x = "PC1", y = "PC2", color = "Cluster") +
+  theme_minimal()
+
+```
+
+Calculate the mean body fat value for each cluster
+```{r}
+aggregate(BodyFat ~ Cluster, data = bodyfat, mean)
+```
+
+
+### HIERARCHICAL CLUSTERING ###
+
+Define linkage methods
+```{r}
+linkage_methods <- c( "average", "single", "complete", "ward")
+```
+
+Function to compute agglomerative coefficient
+```{r}
+ac <- function(data, method) {
+  agnes(data, method = method)$ac
+}
+```
+
+Calculate agglomerative coefficient for each clustering linkage method
+```{r}
+sapply(linkage_methods, function(method) ac(bodyfat[, -1], method))
+```
+
+We can see that Ward’s minimum variance method produces the highest agglomerative coefficient, thus we’ll use that as the method for our final hierarchical clustering:
+```{r}
+#perform hierarchical clustering using Ward's minimum variance
+ward_clust <- agnes(bodyfat[, -1], method = "ward")
+
+#produce dendrogram
+pltree(ward_clust, cex = 0.6, hang = -1, main = "Dendrogram")
 ```
