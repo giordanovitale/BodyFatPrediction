@@ -1,0 +1,135 @@
+### PRINCIPAL COMPONENT ANALYSIS ###
+Remove the dependent variable BodyFat.
+```{r}
+library(dplyr)
+X <- bodyfat %>% 
+  dplyr::select(-BodyFat)
+
+dim(X)
+```
+
+Use the R built-in function `prcomp()` to calculate the principal components of the data set.
+```{r}
+pca_results <- prcomp(X,
+                      scale = TRUE,
+                      center = TRUE)
+summary(pca_results)
+```
+
+Variance of the principal components
+```{r}
+# for each principal component, we take its standard deviation (see table above) and square it, thus we obtain their variance
+pc_var <- pca_results$sdev ** 2
+pc_var
+```
+
+Percentage of variance explained by the components.
+```{r}
+explained_var <- pc_var / sum(pc_var)
+explained_var
+```
+
+The first three components explain the 73% of the variance in the original data set.
+```{r}
+sum(explained_var[1:3])
+```
+
+Plot the eigenvalues (= variances) against the number of dimensions
+```{r}
+library(factoextra)
+
+fviz_eig(pca_results, 
+         addlabels = TRUE,
+         xlab = "Principal Components",
+         ylab = "Eigenvalue/Variance",
+         choice = "eigenvalue",
+         barfill = "tan1",
+         linecolor = "black",
+         barcolor = "black",
+         main = "Figure 2",
+         ncp = 11) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  ggtitle("Sree Plot") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+```{r}
+par(mfrow = c(2,1))
+plot(explained_var, type = 'o', ylab = 'Explained Variance', 
+     xlab = "Principal Component", col = "blue",
+     main = "Variance Explained by each component")
+plot(cumsum(explained_var), type = "o", ylab = "Cumulative Exp. Var.", 
+     xlab = "Principal Component", col = "brown3",
+     main = "Cumulative Variance Explained")
+```
+
+Save the first 3 components.
+```{r}
+pc1 <- pca_results$x[, "PC1"]
+
+pc2 <- pca_results$x[, "PC2"]
+
+pc3 <- pca_results$x[, "PC3"]
+```
+
+
+```{r}
+biplot(pca_results, scale = 0,
+       xlab = "Principal component 1",
+       ylab = "Principal component 2")
+```
+
+### PC REGRESSION ###
+```{r}
+X_train <- train %>% 
+  dplyr::select(-BodyFat)
+
+dim(X_train)
+```
+
+```{r}
+pca_results2 <- prcomp(X_train,
+                      scale = TRUE,
+                      center = TRUE)
+summary(pca_results2)
+```
+```{r}
+pc_var2 <- pca_results2$sdev ** 2
+pc_var2
+```
+
+Percentage of variance explained by the components.
+```{r}
+explained_var2 <- pc_var2 / sum(pc_var2)
+explained_var2
+```
+
+The first three components explain the 73% of the variance in the original data set.
+```{r}
+sum(explained_var2[1:3])
+```
+Save the first three components.
+```{r}
+pc1_train <- pca_results2$x[, "PC1"]
+pc2_train <- pca_results2$x[, "PC2"]
+pc3_train <- pca_results2$x[, "PC3"]
+```
+
+
+```{r}
+pc_regression <- lm(BodyFat ~ pc1_train + pc2_train + pc3_train,
+                    data = train)
+
+summary(pc_regression)
+```
+
+```{r}
+# compute the predictions using pc_regression
+pred_pc2 <- predict(pc_regression, newdata = test)
+mse_pcr <- MSE(pred_pc2, test$BodyFat)
+```
+```{r}
+BIC(pc_regression)
+```
