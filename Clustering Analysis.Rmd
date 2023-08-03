@@ -91,7 +91,33 @@ ggplot(bodyfat[, -1], aes(x = X$pc1, y = X$pc2, color = as.factor(bodyfat$Cluste
 
 Calculate the mean body fat value for each cluster
 ```{r}
-aggregate(BodyFat ~ Cluster, data = bodyfat, mean)
+cl <- aggregate(BodyFat ~ Cluster, data = bodyfat, mean)
+```
+
+```{r}
+# Define custom colors for each cluster
+cluster_colors <- c("firebrick3", "#00AFBB", "#E7B800")
+
+barplot(cl$BodyFat, names.arg = cl$Cluster, 
+        xlab = "Cluster", ylab = "BodyFat", 
+        col = cluster_colors, 
+        main = "BodyFat by Cluster",
+        ylim = c(0, 35),
+        width = 0.8)
+```
+
+```{r}
+ggparcoord(bodyfat,
+           columns = 2:12, 
+           groupColumn = 13, 
+           alphaLines = 0.3) +
+  theme_minimal() +
+  xlab(" ") +
+  ylab(" ") +
+  scale_color_manual(values = cluster_colors) +
+  theme(legend.position = "top") +
+  scale_fill_discrete(name = "Clusters", 
+                      labels = c("C1", "C2", "C3"))
 ```
 
 
