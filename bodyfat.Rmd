@@ -1,0 +1,1253 @@
+---
+title: "bodyfat"
+author: "Giordano Vitale"
+date: "2023-07-13"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+The variables are:
+
+- Density determined from underwater weighing
+- Percent body fat from Siri's (1956) equation
+- Age (years)
+- Weight (lbs)
+- Height (inches)
+- Neck circumference (cm)
+- Chest circumference (cm)
+- Abdomen circumference (cm)
+- Hip circumference (cm)
+- Thigh circumference (cm)
+- Knee circumference (cm)
+- Ankle circumference (cm)
+- Biceps (extended) circumference (cm)
+- Forearm circumference (cm)
+- Wrist circumference (cm)
+
+
+# 0) IMPORT LIBRARIES AND DATA
+```{r}
+bodyfat <- read.csv("C:/Users/giord/OneDrive - Università degli Studi di Milano/1st year/Quarter 2/Statistical Learning/BodyFat Prediction/bodyfat.csv")
+```
+
+Convert Weight from lbs to KG and convert Height from inches to CMs.
+```{r}
+bodyfat$Weight <- bodyfat$Weight/2.2
+bodyfat$Height <- bodyfat$Height*2.54
+```
+
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(car)
+library(corrplot)
+library(e1071)
+library(MASS)
+library(pls)
+library(splines)
+library(caret)
+library(leaps)
+library(gam)
+library(MLmetrics)
+library(cluster)
+library(rpart)
+library(rpart.plot)
+library(factoextra)
+library(plotly)
+```
+
+# 1) DATA PREPROCESSING
+
+```{r}
+head(bodyfat)[1:3,]
+```
+
+
+```{r}
+dim(bodyfat)
+```
+
+
+Check the datatype for each column.
+```{r}
+map(bodyfat, class)
+```
+
+Check for null values.
+```{r}
+# colSums(is.na(bodyfat)) > 0
+sum(is.na(bodyfat))
+```
+
+Check for duplicates.
+```{r}
+sum(duplicated(bodyfat))
+```
+
+Check for infinite values.
+```{r}
+apply(bodyfat, 2, function(x) any(is.infinite(x)))
+```
+
+```{r}
+sapply(bodyfat, function(x) n_distinct(x, na.rm = TRUE))
+```
+
+
+
+# 2) EXPLORATORY DATA ANALYSIS
+
+```{r}
+summary(bodyfat)
+```
+
+Create a function to build histogram plots with normal line fitted.
+```{r}
+histo_plot<- function (data, col, bins = 30) {
+  ggplot(data, aes(x = .data[[col]])) + 
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = bins,
+                 fill = "lightblue",
+                 color = "black") + 
+  geom_density(kernel = "gaussian",
+               color = "red",
+               size = 1.2) + 
+  labs(x = col, y= "Density") +
+  ggtitle(paste("Histogram with density line -", col)) +
+  theme(plot.title = element_text(hjust = 0.5))
+  }
+```
+
+
+Apply the function to each column.
+```{r}
+lapply(colnames(bodyfat), function(col) histo_plot(bodyfat, col, bins=16))
+```
+
+
+```{r}
+skewness <- lapply(colnames(bodyfat), function(col) skewness(bodyfat[[col]]))
+
+variable_names <- names(bodyfat)
+
+skewness <- unlist(skewness)
+skewness <- round(skewness, digits = 2)
+
+skewness_df <- data.frame(Variable = variable_names, Skewness = skewness)
+skewness_df
+```
+
+
+Check if BodyFat is normally distributed
+```{r}
+shapiro.test(bodyfat$BodyFat)
+```
+From the output, the p-value > 0.05 implying that the distribution of the data are not significantly different from normal distribution. In other words, we can assume the normality.
+
+Do it for all the variables:
+```{r}
+# compute shapiro test for each column of the data set
+shapiro_results <- lapply(bodyfat, function(col) shapiro.test(col))
+
+# Extract variable names and p-values from the test results
+variable_names <- names(bodyfat)
+
+# compute the p values
+p_values <- round(sapply(shapiro_results, function(result) result$p.value), 
+                  digits = 2)
+
+# create the dataframe containing results 
+shapiro_results_df <- data.frame(Variable = variable_names, P_Value = p_values)
+row.names(shapiro_results_df) <- NULL
+
+# add a column that returns Yes if normal, No otherwise
+shapiro_results_df$Normal <- ifelse(shapiro_results_df$P_Value > 0.05, "Yes", "No")
+shapiro_results_df
+```
+
+
+
+Take a look at the outlier in Height column.
+```{r}
+bodyfat[bodyfat$Height < 100, ]
+```
+Remove this outlier
+```{r}
+bodyfat <- bodyfat[-(42),]
+```
+
+
+Output box plots for each column of the data frame.
+```{r}
+for (col in colnames(bodyfat)) {
+  boxplot(bodyfat[[col]], main = paste("Boxplot - ", col))
+}
+```
+
+Produce Q-Q plots with confidence intervals.
+```{r}
+for (col in colnames(bodyfat)) {
+  qqPlot(bodyfat[[col]], main = paste("Q-Q plot - ", col))
+}
+```
+
+
+Scatter plots of the dependent variable as a function of the i-th independent one, individually.
+```{r}
+scatter_plot <- function(data, x_var, y_var) {
+  ggplot(data, aes_string(x = x_var, y = y_var)) +
+    geom_point(col = "black", size = 2) +
+    labs(x = x_var, y = y_var) +
+    ggtitle(paste("Scatter Plot of", y_var, "vs.", x_var)) +
+    theme(plot.margin = unit(c(1,1,1,1), "cm"),      # Set plot margins
+         aspect.ratio = 0.5,                            # Set aspect ratio (square)
+        plot.background = element_rect(fill = "white")) +  # Set plot background color
+   theme_minimal()
+}
+```
+
+```{r}
+explanatory_variables <- names(bodyfat)[3:12]
+
+# Create scatter plots for each explanatory variable
+scatter_plots_list <- lapply(explanatory_variables, function(var) scatter_plot(bodyfat, var, "BodyFat"))
+scatter_plots_list
+```
+
+
+Compute correlation matrix.
+```{r}
+correlation_matrix <- cor(bodyfat)
+round(correlation_matrix, 2)
+```
+
+```{r}
+corrplot::corrplot(correlation_matrix, method = "number", 
+         number.cex = 0.6,
+         tl.col = "black", 
+         type = "lower", 
+         tl.srt = 45)
+```
+
+
+Plot it.
+```{r}
+corrplot::corrplot(correlation_matrix, method = "circle", 
+         type = "lower",
+         order = "hclust",
+         tl.col = "black", 
+         tl.srt = 45)
+```
+
+
+# 3) FEATURE ENGINEERING
+Remove Density.
+```{r}
+bodyfat <- bodyfat %>%
+  dplyr::select(-Density)
+```
+
+Create ACratio and HTratio
+```{r}
+bodyfat$ACratio <- bodyfat$Abdomen / bodyfat$Chest
+bodyfat$HTratio <- bodyfat$Hip / bodyfat$Thigh
+```
+
+Remove Abdomen, Chest, Hip, Thigh since we created new variables. 
+Why? Because of high collinearity.
+```{r}
+bodyfat <- bodyfat %>% 
+  dplyr::select(-Abdomen, -Chest, -Hip, -Thigh)
+```
+
+```{r}
+head(bodyfat)
+```
+
+# ?? VIF ??
+```{r}
+simple_model <- lm(BodyFat ~ ., bodyfat)
+```
+
+```{r}
+vif_values <- vif(simple_model)
+
+barplot(vif_values, main = "VIF" , horiz = "TRUE")
+abline(v = 5, lwd = 3, lty = 2)
+```
+
+
+
+```{r}
+correlation_matrix2 <- cor(bodyfat)
+round(correlation_matrix2, 2)
+```
+
+```{r}
+corrplot::corrplot(correlation_matrix2, method = "number", 
+         number.cex = 0.6, 
+         tl.col = "black", 
+         type = "lower", 
+         tl.srt = 45)
+```
+
+
+
+
+
+# 4) REGRESSION ANALYSIS
+
+Apply the train-test split.
+```{r}
+sample <- sample(c(TRUE, FALSE), 
+                 nrow(bodyfat), 
+                 replace = TRUE, 
+                 prob = c(0.75,0.25))
+train  <- bodyfat[sample, ]
+test   <- bodyfat[!sample, ]
+```
+
+
+### A) Linear Regression ###
+
+- LINEAR REGRESSION USING ALL THE VARIABLES
+```{r}
+# Train the model
+complete_lm <- lm(BodyFat ~ ., data = train)
+
+# summary of the model
+summary(complete_lm)
+
+# see Salini's additional code in file 1
+```
+
+Compute measure of goodness.
+```{r}
+# Adjusted R Squared
+summary(complete_lm)$adj.r.squared
+
+# BIC
+BIC_linear <- BIC(complete_lm)
+
+#AIC 
+AIC_linear <- AIC(complete_lm)
+```
+
+```{r}
+vif_values <- vif(complete_lm)
+
+barplot(vif_values, main = " " , horiz = "TRUE", col = "burlywood")
+abline(v = 5, lwd = 3, lty = 2, col = "red")
+axis(side = 1, at = 1:12)
+```
+
+- ROBUST REGRESSION USING ALL THE VARIABLES
+```{r}
+# Train the model
+robust_lm <- rlm(BodyFat ~ ., data = train, 
+                 psi = psi.hampel,
+                 init = "lts")
+
+# Summary
+summary(robust_lm)
+
+# BIC
+BIC_robust <- BIC(robust_lm)
+```
+
+
+
+
+### B) LOGISTIC REGRESSION MODEL ###
+```{r}
+logistic_regression <- glm(BodyFat ~ ., data = train)
+summary(logistic_regression)
+
+
+# McFadden R squared
+McF <- round(with(summary(logistic_regression), 1 - deviance/null.deviance),
+             digits = 2)
+paste("McFadden R squared for logistic regression is ", McF)
+
+BIC_log_reg <- BIC(logistic_regression)
+paste("BIC for logistic regression is ", BIC_log_reg)
+```
+
+### C) - SUBSET SELECTION ###
+(http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/155-best-subsets-regression-essentials-in-r/)
+
+```{r}
+# train the models
+subset_selection <- regsubsets(BodyFat ~ ., data = train, method = "exhaustive", nvmax = 11)
+
+# summary
+subset_selection_summary <- summary(subset_selection)
+subset_selection_summary
+```
+
+```{r}
+# optimal number of features to include in the model, according to Cp
+x <- which.min(subset_selection_summary$bic)
+x
+```
+
+```{r}
+# visualize the performance of each "best performing" model with n features (n = 1, ..., 11)
+plot(subset_selection_summary$bic, 
+     xlab = "Number of Variables",
+     ylab = "BIC",
+     main = " ") # BIC for each best performing model
+
+points(x, 
+       subset_selection_summary$bic[x],
+       pch = 0,
+       col = "red",
+       cex = 2)
+```
+
+```{r}
+data.frame(
+  Adj.R2 = which.max(subset_selection_summary$adjr2),
+  CP = which.min(subset_selection_summary$cp),
+  BIC = which.min(subset_selection_summary$bic)
+)
+```
+
+
+Show the coefficients of the best model according to BIC.
+```{r}
+coef(subset_selection, x)
+
+subset_selection_summary$which[x, ]
+```
+
+__Comment: even if 9 is the best number of features according to 2 goodness measurements, the improvement from 6 to 9 is negligible and for this reason, for higher simplicity, the model with 6 features may be preferred.__
+
+Formally define the model with *x* variables.
+```{r}
+best_subset <- lm(BodyFat ~ Age + Weight + Height + 
+                       Wrist + ACratio, 
+                        data = train) 
+
+summary(best_subset)
+
+BIC_sub <- BIC(best_subset)
+paste("BIC for best subset model is ", BIC_sub)
+```
+
+## ?? VIF ??
+```{r}
+#vif(subset6)
+```
+
+
+
+### D) POLYNOMIAL REGRESSION ###
+
+Visualize BodyFat as a function of the two variables created, since the scatter plots have been performed before the feature engineering part.
+```{r}
+plot(bodyfat$BodyFat, bodyfat$HTratio)
+
+plot(bodyfat$BodyFat, bodyfat$ACratio)
+```
+
+Create a polynomial model where the variables are the normal ones and the squared ones.
+```{r}
+polynomial_model <- lm(BodyFat ~ 
+                         Age + I(Age^2) + Weight + I(Weight^2) + 
+                         Height + I(Height^2) + Neck + I(Neck^2) + 
+                         Knee + I(Knee^2) + Ankle + I(Ankle^2) + 
+                         Biceps + I(Biceps^2) + Forearm + I(Forearm^2) + 
+                         Wrist + I(Wrist^2) + ACratio + I(ACratio^2) +  
+                         HTratio + I(HTratio^2), 
+                       data=train)
+
+summary(polynomial_model)
+```
+Perform exhaustive subset selection technique to the polynomial model.
+```{r}
+subset_polynomial <- regsubsets(BodyFat ~ 
+                         Age + I(Age^2) + Weight + I(Weight^2) + 
+                         Height + I(Height^2) + Neck + I(Neck^2) + 
+                         Knee + I(Knee^2) + Ankle + I(Ankle^2) + 
+                         Biceps + I(Biceps^2) + Forearm + I(Forearm^2) + 
+                         Wrist + I(Wrist^2) + ACratio + I(ACratio^2) +  
+                         HTratio + I(HTratio^2), 
+                       data=train,
+                       method = "exhaustive",
+                       nvmax = 22)
+
+subset_polynomial_summary <- summary(subset_polynomial)
+```
+
+Which is the optimal number of features according to the Cp measure?
+```{r}
+x_pol <- which.min(subset_polynomial_summary$bic)
+x_pol
+```
+
+```{r}
+# visualize the performance of each "best performing" model with n features (n = 1, ..., 11)
+plot(subset_polynomial_summary$bic, 
+     xlab = "Number of Variables",
+     ylab = "BIC",
+     main = " ") # BIC for each best performing model
+
+points(x_pol, 
+       subset_polynomial_summary$bic[x_pol],
+       pch = 0,
+       col = "red",
+       cex = 2)
+```
+__Same comment done before can be done here...__
+
+```{r}
+coef(subset_polynomial, x_pol)
+
+# subset_polynomial_summary$which[x_pol, ]
+```
+
+Formally define the expression of the polynomial model resulted from subset selection.
+```{r}
+subset_polyn <- lm(BodyFat ~ Age + Weight + I(Weight^2) + Height + Wrist + I(ACratio^2),
+                  data = train)
+
+summary(subset_polyn)
+```
+
+```{r}
+BIC_polynomial <- BIC(polynomial_model)
+BIC_sub_polyn <- BIC(subset_polyn)
+```
+
+Bad resutls!
+```{r}
+vif(subset_polyn)
+```
+
+
+
+### E) PARTIAL LEAST SQUARES ###
+```{r}
+pls_model <- plsr(BodyFat ~., data = train, scale = TRUE, validation = "CV")
+summary(pls_model)
+```
+VALIDATION: RMSEP (Root Mean Squared Error of Prediction): This section presents the cross-validated performance of the PLS model using the RMSEP metric. The RMSEP indicates the average prediction error of the model on new data. The values under each number of components indicate the RMSEP obtained after cross-validation for that specific number of components.
+
+TRAINING: % Variance Explained: This section shows the percentage of variance explained by the PLS model for both the predictor variables (X) and the response variable "BodyFat" (Y). For example, with 1 component, the PLS model explains 46.61% of the variation in the predictor variables and 49.11% of the variation in "BodyFat."
+
+```{r}
+validationplot(pls_model, val.type="MSEP", legendpos = "topright", main="PLSR Test")
+```
+
+Build a model made by the two components.
+```{r}
+# Extract the scores (component values) for the first two components
+component_scores <- pls_model$scores[, 1:2]
+
+# Create a new data frame with the component scores and the response variable 'BodyFat'
+data_with_components <- data.frame(component1 = component_scores[, 1],
+                                   component2 = component_scores[, 2],
+                                   BodyFat = train$BodyFat)
+
+# Fit a linear regression model using the first two components as predictors
+model_pls_components <- lm(BodyFat ~ component1 + component2, data = data_with_components)
+summary(model_pls_components)
+```
+
+```{r}
+BIC_pls_components <- BIC(model_pls_components)
+```
+
+
+```{r}
+component1 = component_scores[, 1]
+component2 = component_scores[, 2]
+```
+
+
+
+### G) LOCAL REGRESSION ###
+```{r}
+#define k-fold cross validation method
+ctrl <- trainControl(method = "cv", number = 5)
+grid <- expand.grid(span = seq(0.5, 0.9, len = 5), degree = 1)
+
+#perform cross-validation using smoothing spans ranging from 0.5 to 0.9
+local_regression <- train(BodyFat ~ ., data = train, method = "gamLoess", tuneGrid=grid, trControl = ctrl)
+
+#print results of k-fold cross-validation
+print(local_regression)
+```
+
+**Comment**: No big takeaway from this - local regression allows only 4 predictors if I want to write down the model with the best span...
+
+
+
+
+### H) REGRESSION TREES ###
+
+https://www.statology.org/classification-and-regression-trees-in-r/
+
+```{r}
+regression_tree <- rpart(BodyFat ~ ., data = train, cp = 0.001)
+
+printcp(regression_tree)
+```
+
+```{r}
+rpart.plot::rpart.plot(regression_tree,
+                       main = "Plot of the complete regression tree")
+```
+
+Prune the tree
+```{r}
+# find the optimal Cp value
+best_cp <- regression_tree$cptable[which.min(regression_tree$cptable[, "xerror"]), "CP"]
+
+# pruned tree
+pruned_tree <- prune(regression_tree, cp = best_cp)
+
+# plot the pruned tree
+rpart.plot::rpart.plot(pruned_tree,
+                       faclen = 0,
+                       type = 2,
+                       box.palette = "Greens",
+                       main = "Plot of the Pruned Tree")
+```
+What to do with this? 
+1) prediction: later
+2) interpretation: e.g., individuals with high HT ratio and AC ratio suffer high bodyfat...)
+3) feature importance: the features appearing in the plot are more important
+4) terminal node scatterplots, or decision boundaries, not sure doable with continuous Y variable...
+
+
+
+
+
+### I) GAMS ###
+
+library gam or library mgcv
+```{r}
+gam_model <- gam(BodyFat ~ s(Age) + (Weight) + (Height) + 
+                            s(Neck) + s(Knee) + s(Ankle) + 
+                            s(Biceps) + s(Forearm) + (Wrist) +
+                            (ACratio) + s(HTratio),
+                 data = train)
+
+summary(gam_model)
+```
+
+
+```{r}
+plot(gam_model, se = T)
+```
+
+```{r}
+BIC_gam <- BIC(gam_model)
+```
+
+
+
+
+### J) SVM REGRESSION ###
+```{r}
+svm_regression <- svm(BodyFat ~ ., data = train,
+                      kernel = "radial")
+
+summary(svm_regression)
+
+svm_regression
+```
+
+```{r}
+svm_regression2 <- svm(BodyFat ~ ., data = train,
+                      kernel = "sigmoid")
+
+summary(svm_regression2)
+
+svm_regression2
+```
+
+```{r}
+svm_regression3 <- svm(BodyFat ~ ., data = train,
+                      kernel = "linear")
+
+summary(svm_regression3)
+
+svm_regression3
+```
+
+
+```{r}
+svm_regression4 <- svm(BodyFat ~ ., data = train,
+                      kernel = "polynomial")
+
+summary(svm_regression4)
+
+svm_regression4
+```
+
+
+
+
+
+# 5) MODEL EVALUATION 
+
+
+### PERFORMANCE OF THE PREDICTIONS ON TEST DATA ###
+
+Linear model with all variables
+```{r}
+pred_linear <- predict(complete_lm, newdata = test)
+mse_linear <- MSE(pred_linear, test$BodyFat)
+```
+
+Robust linear model with all variables
+```{r}
+pred_robust <- predict(robust_lm, newdata = test)
+mse_robust <- MSE(pred_robust, test$BodyFat)
+```
+
+Logistic Regression
+```{r}
+pred_log <- predict(logistic_regression, newdata = test)
+mse_log <- MSE(pred_log, test$BodyFat)
+```
+
+Subset selection
+```{r}
+pred_subset_lin <- predict(best_subset, newdata = test)
+mse_subset_lin <- MSE(pred_subset_lin, test$BodyFat)
+```
+
+Polynomial Regression
+```{r}
+pred_polyn <- predict(polynomial_model, newdata = test)
+mse_polyn <- MSE(pred_polyn, test$BodyFat)
+```
+
+Subset Polynomial Regression
+```{r}
+pred_sub_polyn <- predict(subset_polyn, newdata = test)
+mse_sub_polyn <- MSE(pred_sub_polyn, test$BodyFat)
+```
+
+PLS components
+```{r}
+pred_pls_comp <- predict(model_pls_components, newdata = test)
+mse_pls_comp <- MSE(pred_pls_comp, test$BodyFat)
+```
+
+Local Regression
+```{r}
+pred_loc_reg <- predict(local_regression, newdata = test)
+mse_loc_reg <- MSE(pred_loc_reg, test$BodyFat)
+```
+
+Pruned Regression Tree
+```{r}
+pred_pruned <- predict(pruned_tree, newdata = test)
+mse_pruned <- MSE(pred_pruned, test$BodyFat)
+```
+
+GAM
+```{r}
+pred_gam <- predict(gam_model, newdata = test)
+mse_gam <- MSE(pred_gam, test$BodyFat)
+```
+
+SVM
+```{r}
+pred_svm <- predict(svm_regression, newdata = test)
+mse_svm <- MSE(pred_svm, test$BodyFat)
+```
+
+
+
+Create a data.frame containing BIC and AdjRSquared for each model
+```{r}
+model_evaluation <- data.frame(
+  
+  Models = c("Linear All", "Robust", "Logistic", "Subset Linear", 
+             "Polynomial All", "Subset Polynomial", 
+             "PLS components", "Local Regression",
+             "Pruned Regression Tree", "GAM", "SVM"),
+  
+  BIC = c(BIC_linear, BIC_robust, BIC_log_reg, BIC_sub,
+          BIC_polynomial, BIC_sub_polyn, 
+          BIC_pls_components, NA, 
+          NA, BIC_gam, NA),
+  
+  MSE = c(mse_linear, mse_robust, mse_log, mse_subset_lin, 
+          mse_polyn, mse_sub_polyn, 
+          mse_pls_comp, mse_loc_reg,
+          mse_pruned, mse_gam, mse_svm)
+)
+
+# round the values of the BICs
+model_evaluation$BIC <- round(as.numeric(model_evaluation$BIC), digits = 2)
+
+# round the values of the BICs
+model_evaluation$MSE <- round(as.numeric(model_evaluation$MSE), digits = 2)
+
+model_evaluation
+```
+
+
+```{r}
+model_evaluation[which.min(model_evaluation$MSE), ]
+```
+
+
+```{r}
+model_evaluation <- data.frame(
+    
+    Models = c("Linear All",
+               "Subset Linear", 
+               "Subset Polynomial", 
+               "PCA regression", 
+               "Pruned Regression Tree", 
+               "GAM"),
+    
+    BIC = c(BIC_linear, 
+            BIC_sub,
+            BIC_sub_polyn, 
+            BIC_pcreg,
+            BIC_gam,
+            NA),
+    
+    MSE = c(mse_linear,
+            mse_subset_lin, 
+            mse_sub_polyn, 
+            mse_pcr,
+            mse_gam,
+            mse_pruned)
+)
+
+# round the values of the BICs
+model_evaluation$BIC <- round(as.numeric(model_evaluation$BIC), digits = 2)
+
+# round the values of the BICs
+model_evaluation$MSE <- round(as.numeric(model_evaluation$MSE), digits = 2)
+
+model_evaluation
+```
+
+```{r}
+model_evaluation[which.min(model_evaluation$MSE), ]
+```
+
+
+
+```{r}
+par(mar = c(2,20,2,2))
+
+barplot(height = model_evaluation$MSE, 
+        names.arg = model_evaluation$Models,
+        col = "darkolivegreen3",
+        main = "MSE comparison among all the models",
+        xlab = "MSE",
+        xlim = c(0,120),
+        ylim = c(0.5, length(model_evaluation$Models) + 3),
+        axisnames = TRUE,
+        las = 1,
+        cex.names = 0.7,
+        horiz = TRUE
+        )
+
+abline(v = min(model_evaluation$MSE), 
+       col = "red",
+       lty = 2,
+       lwd = 3)
+
+text(min(model_evaluation$MSE) + 22, 
+     length(model_evaluation$Models) + 3, 
+     paste("Min MSE =", min(model_evaluation$MSE)), 
+     pos = 2, 
+     col = "red")
+```
+
+
+```{r}
+par(mar = c(2,20,2,2))
+
+barplot(height = model_evaluation$BIC, 
+        names.arg = model_evaluation$Models,
+        col = "lightblue2",
+        main = "BIC comparison among all the models",
+        xlab = "BIC",
+        xlim = c(0,1500),
+        ylim = c(0.5, length(model_evaluation$Models) + 3),
+        axisnames = TRUE,
+        las = 1,
+        cex.names = 0.7,
+        horiz = TRUE
+        )
+
+abline(v = min(model_evaluation$BIC), 
+       col = "red",
+       lty = 2,
+       lwd = 3)
+
+text(min(model_evaluation$BIC) + 22, 
+     length(model_evaluation$Models) + 3, 
+     paste("Min BIC =", min(model_evaluation$BIC)), 
+     pos = 2, 
+     col = "red")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# **UNSUPERVISED ANALYSIS** 
+
+### PRINCIPAL COMPONENT ANALYSIS ###
+Remove the dependent variable BodyFat.
+```{r}
+X <- bodyfat %>% 
+  dplyr::select(-BodyFat)
+
+dim(X)
+```
+
+Use the R built-in function `prcomp()` to calculate the principal components of the data set.
+```{r}
+pca_results <- prcomp(X,
+                      scale = TRUE,
+                      center = TRUE)
+summary(pca_results)
+```
+
+Variance of the principal components
+```{r}
+# for each principal component, we take its standard deviation (see table above) and square it, thus we obtain their variance
+pc_var <- pca_results$sdev ** 2
+pc_var
+```
+
+Percentage of variance explained by the components.
+```{r}
+explained_var <- pc_var / sum(pc_var)
+explained_var
+```
+
+The first three components explain the 73% of the variance in the original data set.
+```{r}
+sum(explained_var[1:3])
+```
+
+Plot the eigenvalues (= variances) against the number of dimensions
+```{r}
+fviz_eig(pca_results, 
+         addlabels = TRUE,
+         xlab = "Principal Components",
+         ylab = "Eigenvalue/Variance",
+         choice = "eigenvalue",
+         barfill = "tan1",
+         linecolor = "black",
+         barcolor = "black",
+         main = "Figure 2",
+         ncp = 11) +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
+  ggtitle("Scree Plot") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+
+```{r}
+par(mfrow = c(2,1))
+plot(explained_var, type = 'o', ylab = 'Explained Variance', 
+     xlab = "Principal Component", col = "blue",
+     main = "Variance Explained by each component")
+plot(cumsum(explained_var), type = "o", ylab = "Cumulative Exp. Var.", 
+     xlab = "Principal Component", col = "brown3",
+     main = "Cumulative Variance Explained")
+axis(side = 1, at = 1:10, labels = 1:10)
+
+```
+
+Save the first 3 components.
+```{r}
+pc1 <- pca_results$x[, "PC1"]
+
+pc2 <- pca_results$x[, "PC2"]
+
+pc3 <- pca_results$x[, "PC3"]
+```
+
+
+```{r}
+biplot(pca_results, scale = 0,
+       xlab = "Principal component 1",
+       ylab = "Principal component 2",
+       col = c("black", "lightblue"),
+       cex = 1)
+points(pca_results$x[, 1], pca_results$x[, 2], col = "red", pch = 16)
+
+```
+
+### PC REGRESSION ###
+```{r}
+X_train <- train %>% 
+  dplyr::select(-BodyFat)
+
+dim(X_train)
+```
+
+```{r}
+pca_results2 <- prcomp(X_train,
+                      scale = TRUE,
+                      center = TRUE)
+summary(pca_results2)
+```
+```{r}
+pc_var2 <- pca_results2$sdev ** 2
+pc_var2
+```
+
+Percentage of variance explained by the components.
+```{r}
+explained_var2 <- pc_var2 / sum(pc_var2)
+explained_var2
+```
+
+The first three components explain the 73% of the variance in the original data set.
+```{r}
+sum(explained_var2[1:3])
+```
+Save the first three components.
+```{r}
+pc1_train <- pca_results2$x[, "PC1"]
+pc2_train <- pca_results2$x[, "PC2"]
+pc3_train <- pca_results2$x[, "PC3"]
+```
+
+
+```{r}
+pc_regression <- lm(BodyFat ~ pc1_train + pc2_train + pc3_train,
+                    data = train)
+
+summary(pc_regression)
+```
+
+```{r}
+# compute the predictions using pc_regression
+pred_pc2 <- predict(pc_regression, newdata = test)
+mse_pcr <- MSE(pred_pc2, test$BodyFat)
+```
+
+```{r}
+BIC_pcreg <- BIC(pc_regression)
+```
+
+
+
+
+### CLUSTERING ANALYSIS ###
+
+### K-Means###
+Add the columns PC# to the data X.
+```{r}
+X$pc1 <- pca_results$x[, "PC1"]
+X$pc2 <- pca_results$x[, "PC2"]
+X$pc3 <- pca_results$x[, "PC3"]
+```
+
+
+Elbow plot for k-means using the whole data set X (1:11)
+```{r}
+fviz_nbclust(X[, c("pc1", "pc2", "pc3")], 
+             kmeans, 
+             method = "wss",
+             linecolor = "black") + 
+  labs(x = "Number of Clusters",
+       y = "Total Within Sum of Squares",
+       title = "Optimal Number of Clusters for K-Means") +
+  geom_vline(xintercept = 3, 
+             linetype = 1, 
+             size = 1,
+             col = "red") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+K-means algorithm
+```{r}
+km <- kmeans(x = X[, c("pc1", "pc2", "pc3")], 
+             centers = 3, 
+             nstart = 1000)
+```
+**km --> K-means clustering with 3 clusters of sizes 109, 59, 83**
+
+
+Plot results of final k-means model
+```{r}
+fviz_cluster(km, 
+             data = X[, c(1:11)],
+             palette = c("firebrick3", "#00AFBB", "#E7B800"),
+             geom = "point",
+             ellipse.type = "convex",
+             ggtheme = theme_minimal(),
+             xlab = "Component 1",
+             ylab = "Component 2") +
+  ggtitle("Cluster Plot using first two components") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+```{r}
+# Adding cluster variable to the ORIGINAL data set
+bodyfat$Cluster <- as.factor(km$cluster)
+```
+
+```{r}
+# Re-levelling to plot the histograms in the desired order
+#levels(bodyfat$cluster) <- c("C2", "C3", "C1")
+
+#bodyfat$cluster <- relevel(bodyfat$cluster, ref = 3)
+X$Cluster <- as.factor(km$cluster) 
+
+# Scatter-plot of the clusters
+ggplot(data = X[, c("pc1", "pc2", "pc3")], 
+       mapping = aes(x = X$pc1,
+                     y = X$pc2,
+                     color = X$Cluster)) +
+  geom_point(size = 0.8, 
+             alpha = 0.8) +
+  scale_colour_manual(values = c("red", "grey", "lightgreen")) +
+  theme_minimal() +
+  labs(x = paste("PC1 (", round(explained_var[1], 2), "%)", sep = ""),
+       y = paste("PC2 (", round(explained_var[2], 2), "%)", sep = ""),
+       title = "3-Means-Clustering") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.title = element_blank()) +
+  guides(color = guide_legend(override.aes = list(size = 4)))
+```
+
+
+
+
+```{r}
+plot_ly(X[, c(1:11)], x =~ pc1, y =~ pc2, z =~ pc3, color =~ bodyfat$Cluster) %>%
+     add_markers(size=1.5)
+```
+
+
+```{r}
+ggplot(bodyfat[, -1], aes(x = X$pc1, y = X$pc2, color = as.factor(bodyfat$Cluster))) +
+  geom_point() +
+  labs(x = "PC1", y = "PC2", color = "Cluster") +
+  theme_minimal()
+
+```
+
+Calculate the mean body fat value for each cluster
+```{r}
+cl <- aggregate(BodyFat ~ Cluster, data = bodyfat, mean)
+```
+
+```{r}
+# Define custom colors for each cluster
+cluster_colors <- c("firebrick3", "#00AFBB", "#E7B800")
+
+barplot(cl$BodyFat, names.arg = cl$Cluster, 
+        xlab = "Cluster", ylab = "BodyFat", 
+        col = cluster_colors, 
+        main = "BodyFat by Cluster",
+        ylim = c(0, 35),
+        width = 0.8)
+```
+
+```{r}
+# Adding cluster variable to the ORIGINAL data set
+bodyfat$Cluster <- as.factor(km$cluster)
+```
+
+
+```{r}
+library(GGally)
+
+ggparcoord(bodyfat,
+           columns = 2:12, 
+           groupColumn = 13, 
+           alphaLines = 0.3) +
+  theme_minimal() +
+  xlab(" ") +
+  ylab(" ") +
+  scale_color_manual(values = cluster_colors,
+                     name = "Clusters",
+                     labels = c("C1", "C2", "C3")) +
+  guides(color = guide_legend(override.aes = list(shape = 19))) +
+  theme(legend.position = "top")
+```
+
+```{r}
+library(GGally)
+
+# Create the parallel coordinates plot with custom colors and shapes
+ggparcoord(bodyfat,
+           columns = 2:12, 
+           groupColumn = 13, 
+           alphaLines = 0.3,
+           col = cluster_colors,
+           shape = cluster_shapes) +
+  theme_minimal() +
+  xlab(" ") +
+  ylab(" ") +
+  scale_color_manual(values = cluster_colors, 
+                     name = "Clusters", 
+                     labels = c("C1", "C2", "C3")) +
+  scale_shape_manual(values = cluster_shapes,
+                     name = "Clusters", 
+                     labels = c("C1", "C2", "C3")) +
+  theme(legend.position = "top")
+
+```
+
+
+
+### HIERARCHICAL CLUSTERING ###
+
+Define linkage methods
+```{r}
+linkage_methods <- c( "average", "single", "complete", "ward")
+```
+
+Function to compute agglomerative coefficient
+```{r}
+ac <- function(data, method) {
+  agnes(data, method = method)$ac
+}
+```
+
+Calculate agglomerative coefficient for each clustering linkage method
+```{r}
+sapply(linkage_methods, function(method) ac(bodyfat[, -1], method))
+```
+
+We can see that Ward’s minimum variance method produces the highest agglomerative coefficient, thus we’ll use that as the method for our final hierarchical clustering:
+```{r}
+#perform hierarchical clustering using Ward's minimum variance
+ward_clust <- agnes(bodyfat[, -1], method = "ward")
+
+#produce dendrogram
+pltree(ward_clust, cex = 0.6, hang = -1, main = "Dendrogram")
+```
+
